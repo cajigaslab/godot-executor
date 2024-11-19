@@ -1,8 +1,11 @@
 class_name Task
-extends Node
+extends Node3D
+
+var thalamus_stub: ThalamusStub = null
 
 signal task_complete(TaskControllerTaskResult)
-func new_task(config: Dictionary) -> void: pass
+
+func apply_config(config: Dictionary) -> void: pass
 
 func get_value(config: Variant) -> float:
 	if config is float:

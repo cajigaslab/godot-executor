@@ -7,14 +7,26 @@ var execution_stream = null
 var task_nodes: Array[Task] = []
 var current_task_node: Task = null
 
+var thalamus_channel = Grpc.CreateChannel('localhost:50050', credentials)
+var thalamus_stub = Thalamus.NewStub(thalamus_channel)
+
+
+func resize() -> void:
+	%OperatorView.content_scale_size = Vector2i(get_window().size)
+	get_viewport().size = get_window().size
+	
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	$OperatorView.world_2d = get_window().world_2d
+	get_tree().get_root().size_changed.connect(resize) 
+	resize()
+	%OperatorView.world_2d = get_window().world_2d
+	get_window().canvas_cull_mask = 1
 	
 	$InitErrorTimer.connect("timeout", _on_init_error_timeout)
 	for child in get_children():
 		print(child.name)
 		if child is Task:
+			child.thalamus_stub = thalamus_stub
 			task_nodes.append(child)
 	
 	for node in task_nodes:
@@ -39,6 +51,14 @@ func _on_init_error_timeout() -> void:
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
+	if Input.is_action_just_pressed("toggle_fullscreen"):
+		if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_WINDOWED:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		else:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	if thalamus_channel.GetState(true) != GrpcConnectivityState.GRPC_CHANNEL_READY:
+		return
+	
 	if execution_stream == null:
 		if task_controller_channel.GetState(true) == GrpcConnectivityState.GRPC_CHANNEL_READY:
 			print('connected')

@@ -1,4 +1,4 @@
-extends "task.gd"
+extends Task
 
 enum State {
   BLANK,
@@ -25,8 +25,24 @@ var images = null
 var state = State.BLANK
 var iteration = 0
 var index = 0
+var xsens_stream: ThalamusXsensReactor = null
+var inject_stream: ThalamusInjectAnalogReactor = null
+var current_pose = ""
+
+func on_xsens(message: ThalamusXsensResponse) -> void:
+	current_pose = message.pose_name
 
 func apply_config(config: Dictionary) -> void:
+	if xsens_stream == null:
+		var selector = ThalamusNodeSelector.new()
+		selector.type = "XSENS"
+		xsens_stream = thalamus_stub.xsens(selector)
+		xsens_stream.connect("received", on_xsens)
+		inject_stream = thalamus_stub.inject_analog()
+		var inject_message = ThalamusInjectAnalogRequest.new()
+		inject_message.node = 'gesture_signal'
+		inject_stream.write(inject_message)
+		
 	time_per_symbol = get_value(config['time_per_symbol'])
 	num_iterations = int(config['num_iterations'])
 	audio_lead = get_value(config['audio_lead'])/1000
@@ -92,11 +108,29 @@ func transition(new_state: State) -> void:
 		$TextureRect.texture = image
 		$Label.visible = false
 		$TextureRect.visible = true
+		
+		var span = ThalamusSpan.new()
+		span.begin = 0
+		span.end = 1
+		
+		var sig = ThalamusAnalogResponse.new()
+		sig.spans = [span]
+		sig.sample_intervals = [0]
+		
+		var injection = ThalamusInjectAnalogRequest.new()
+		
+		sig.data = [5]
+		injection.signal = sig
+		inject_stream.write(injection)
+		
+		$InjectTimer.start()
+		
 	elif new_state == State.SUCCESS:
 		$SuccessPlayer.play()
 		$TextureRect.visible = false
 		$Label.visible = true
 		$Label.add_theme_color_override("font_color", Color(0, 1, 0))
+		$Label.text = "Success"
 		$Timer.wait_time = 1
 		$Timer.start()
 	elif new_state == State.FAILURE:
@@ -104,6 +138,7 @@ func transition(new_state: State) -> void:
 		$TextureRect.visible = false
 		$Label.visible = true
 		$Label.add_theme_color_override("font_color", Color(1, 0, 0))
+		$Label.text = "Failure"
 		$Timer.wait_time = 1
 		$Timer.start()
 	state = new_state
@@ -130,9 +165,28 @@ func on_finish() -> void:
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	$Timer.connect("timeout", _on_timeout)
+	$InjectTimer.connect("timeout", on_inject_timeout)
+
+func on_inject_timeout() -> void:
+	var span = ThalamusSpan.new()
+	span.begin = 0
+	span.end = 1
+		
+	var sig = ThalamusAnalogResponse.new()
+	sig.spans = [span]
+	sig.sample_intervals = [0]
+		
+	var injection = ThalamusInjectAnalogRequest.new()
+		
+	sig.data = [0]
+	injection.signal = sig
+	inject_stream.write(injection)
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
 	if state == State.QUEUE:
 		if Input.is_action_pressed("ui_accept"):
-			transition(State.SUCCESS)
+			if current_pose == maybe_poses[index]:
+				transition(State.SUCCESS)
+			else:
+				transition(State.FAILURE)

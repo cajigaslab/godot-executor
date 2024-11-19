@@ -1,26 +1,33 @@
-[gd_scene load_steps=3 format=3 uid="uid://bdgtmavjgirkl"]
+[gd_scene load_steps=4 format=3 uid="uid://bdgtmavjgirkl"]
 
-[ext_resource type="Script" path="res://root.gd" id="1_nju7i"]
+[ext_resource type="Script" path="res://node_3d.gd" id="1_x1tgr"]
+[ext_resource type="Script" path="res://imagined_task.gd" id="2_ksah6"]
 [ext_resource type="Script" path="res://motion_capture_task.gd" id="2_pvcys"]
 
 [node name="Root" type="Node"]
-script = ExtResource("1_nju7i")
+script = ExtResource("1_x1tgr")
 
-[node name="InitErrorTimer" type="Timer" parent="."]
+[node name="Node3D" type="Node3D" parent="."]
+
+[node name="InitErrorTimer" type="Timer" parent="Node3D"]
 one_shot = true
 
-[node name="motion_capture_task" type="Node" parent="."]
+[node name="imagined_task" type="Node3D" parent="Node3D"]
+script = ExtResource("2_ksah6")
+
+[node name="motion_capture_task" type="Node3D" parent="Node3D"]
 script = ExtResource("2_pvcys")
 
-[node name="Timer" type="Timer" parent="motion_capture_task"]
+[node name="Timer" type="Timer" parent="Node3D/motion_capture_task"]
 one_shot = true
 
-[node name="SuccessPlayer" type="AudioStreamPlayer" parent="motion_capture_task"]
+[node name="SuccessPlayer" type="AudioStreamPlayer" parent="Node3D/motion_capture_task"]
 volume_db = 12.787
 
-[node name="FailurePlayer" type="AudioStreamPlayer" parent="motion_capture_task"]
+[node name="FailurePlayer" type="AudioStreamPlayer" parent="Node3D/motion_capture_task"]
 
-[node name="TextureRect" type="TextureRect" parent="motion_capture_task"]
+[node name="TextureRect" type="TextureRect" parent="Node3D/motion_capture_task"]
+visibility_layer = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -28,9 +35,10 @@ grow_horizontal = 2
 grow_vertical = 2
 stretch_mode = 5
 
-[node name="StartPlayer" type="AudioStreamPlayer" parent="motion_capture_task"]
+[node name="StartPlayer" type="AudioStreamPlayer" parent="Node3D/motion_capture_task"]
 
-[node name="Label" type="Label" parent="motion_capture_task"]
+[node name="Label" type="Label" parent="Node3D/motion_capture_task"]
+visibility_layer = 2
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -43,5 +51,18 @@ text = "Success"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="OperatorView" type="Window" parent="."]
+[node name="OperatorLabel" type="Label" parent="Node3D"]
+visibility_layer = 2
+offset_right = 112.0
+offset_bottom = 23.0
+text = "Operator View"
+
+[node name="OperatorView" type="Window" parent="Node3D"]
+unique_name_in_owner = true
 initial_position = 2
+size = Vector2i(300, 300)
+transient = true
+always_on_top = true
+content_scale_size = Vector2i(100, 100)
+content_scale_mode = 1
+content_scale_aspect = 1
