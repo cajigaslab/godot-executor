@@ -19,7 +19,7 @@ func resize() -> void:
 func _ready() -> void:
 	get_tree().get_root().size_changed.connect(resize) 
 	resize()
-	%OperatorView.world_2d = get_window().world_2d
+	#%OperatorView.world_2d = get_window().world_2d
 	get_window().canvas_cull_mask = 1
 	
 	$InitErrorTimer.connect("timeout", _on_init_error_timeout)
@@ -27,6 +27,8 @@ func _ready() -> void:
 		print(child.name)
 		if child is Task:
 			child.thalamus_stub = thalamus_stub
+			if child.name == 'imagined_task':
+				continue
 			task_nodes.append(child)
 	
 	for node in task_nodes:
@@ -35,7 +37,7 @@ func _ready() -> void:
 		
 	var config = TaskControllerTaskConfig.new()
 	config.body = '{ "task_type": "motion_capture_task", "type": "task", "goal": 8, "name": "Untitled", "intertrial_timeout": { "min": 1, "max": 1 }, "start_timeout": { "min": 1, "max": 1 }, "hold_timeout": { "min": 1, "max": 1 }, "blink_timeout": { "min": 1, "max": 1 }, "fail_timeout": { "min": 1, "max": 1 }, "success_timeout": { "min": 1, "max": 1 }, "target_x": { "min": 1, "max": 1 }, "target_y": { "min": 1, "max": 1 }, "target_width": { "min": 1, "max": 1 }, "target_height": { "min": 1, "max": 1 }, "target_color": [255, 255, 255], "targets": [], "available_images": [["C:/Thalamus/board0.png", "board0.png"], ["C:/Thalamus/board1.png", "board1.png"], ["C:/Thalamus/board2.png", "board2.png"]], "selected_images": [["C:/Thalamus/board0.png", "board0.png"], ["C:/Thalamus/board2.png", "board2.png"], ["C:/Thalamus/board1.png", "board1.png"]], "time_per_symbol": 1, "num_iterations": 2, "always_randomize": false, "num_random": 3, "audio_lead": { "min": 1000, "max": 1500 }, "start_audio_file": "C:/Thalamus/success_clip.ogg", "success_audio_file": "", "fail_audio_file": "", "indicate_success_failure": true, "task_cluster_name": "Untitled", "queue_index": 0 }'
-	_on_received(config)
+	#_on_received(config)
 
 func _on_task_complete(result: TaskControllerTaskResult) -> void:
 	remove_child(current_task_node)

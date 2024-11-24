@@ -36,15 +36,10 @@ func _ready() -> void:
 	bones[62] = skeleton.find_bone('pinky_03_r')
 
 func _process(delta: float) -> void:
+	pass
 	#If the motion capture hasn't been created check if we have a Thalamus
 	#connection and start the stream.  Pass each message we receive to
-	#_on_message.
-	if stream == null:
-		if channel.GetState(true) == GrpcConnectivityState.GRPC_CHANNEL_READY:
-			var selector = ThalamusNodeSelector.new()
-			selector.name = "Node 1"
-			stream = stub.xsens(selector)
-			stream.connect("received", _on_message)
+	#_on_message.222
 
 func _on_message(message):
 	var rotations = {}
