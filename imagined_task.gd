@@ -109,7 +109,7 @@ var scissors_rotations = {43: Quaternion(-0.7347893714904785, 0.5802742838859558
  61: Quaternion(0.28552863001823425, 0.875688910484314, 0.3684656023979187, 0.12599752843379974),
  62: Quaternion(0.5241822004318237, 0.7573577165603638, 0.389112651348114, 0.015284978784620762)}
 
-@onready var pose_position = 0.0
+@export_range(0.0, 1.0) var pose_position = 0.0
 @onready var start_rotations = rock_rotations
 @onready var end_rotations = scissors_rotations
 
