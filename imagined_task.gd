@@ -94,8 +94,8 @@ var scissors_rotations = {43: Quaternion(-0.7347893714904785, 0.5802742838859558
  61: Quaternion(0.28552863001823425, 0.875688910484314, 0.3684656023979187, 0.12599752843379974),
  62: Quaternion(0.5241822004318237, 0.7573577165603638, 0.389112651348114, 0.015284978784620762)}
 
-@onready var last_rotations = paper_rotations
-@onready var goal_rotations = paper_rotations
+@onready var last_rotations = rock_rotations
+@onready var goal_rotations = rock_rotations
 
 func global_to_local_rotations(rotations: Dictionary) -> void:
 	rotations[46] = rotations[45].inverse()*rotations[46]
@@ -135,9 +135,6 @@ func _process(delta: float) -> void:
 			transition(State.SUCCESS)
 		else:
 			transition(State.FAILURE)
-	
-	if state != State.ANIMATE:
-		return
 		
 	current_time += delta
 	current_time = min(current_time, duration)
@@ -175,6 +172,7 @@ func on_xsens(message: ThalamusXsensResponse):
 	
 func apply_config(config: Dictionary) -> void:
 	state = State.INVALID
+	goal_rotations = rock_rotations
 		
 	transitions = config['Transitions']
 	current_transition = 0
