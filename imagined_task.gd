@@ -5,45 +5,30 @@ extends Task
 @export_range(0.0, 1.0) var scissors = 0.0
 
 enum State {
-  INVALID,
-  BLANK,
-  QUEUE,
-  SUCCESS,
-  FAILURE
+	INVALID,
+	INTER,
+	TITLE,
+	ANIMATE,
+	SUCCESS,
+	FAILURE
 }
 
-var is_first_ready = true
-var time_per_symbol = 0.0
-var num_iterations = 0
-var audio_lead = 0.0
-var always_randomize = false
+var duration = 0.0
+var current_time = 0.0
 var audio_filename = ''
-var indicate_success_failure = false
-var blank_time = .032
-var LAST_IMAGE = null
-var maybe_images: Array[ImageTexture] = []
-var maybe_poses = null
-var valid_indexes = null
-var images = null
 var state = State.INVALID
-var iteration = 0
-var index = 0
 var xsens_stream: ThalamusXsensReactor = null
 var inject_stream: ThalamusInjectAnalogReactor = null
 var feedback_stream: ThalamusAnalogReactor = null
 var feedback_node = ''
 var feedback_channel = ''
-var current_pose = ""
-var current_time = 0.0
 var transitions = null
+var current_pose = ''
+var current_transition = 0
 var inter_transition_interval = 0.0
 var goals = []
 
-@onready var expected_skeleton = $Expected/RootNode/Skeleton3D
-@onready var actual_skeleton = $Actual/RootNode/Skeleton3D
 @onready var demo_skeleton = $Demo/RootNode/Skeleton3D
-@onready var expected_bones = get_bones($Expected/RootNode/Skeleton3D)
-@onready var actual_bones = get_bones($Actual/RootNode/Skeleton3D)
 @onready var demo_bones = get_bones($Demo/RootNode/Skeleton3D)
 
 var rock_rotations = {43: Quaternion(-0.5101697444915771, 0.7356023192405701, 0.08989693969488144, 0.4365026652812958),
@@ -109,9 +94,8 @@ var scissors_rotations = {43: Quaternion(-0.7347893714904785, 0.5802742838859558
  61: Quaternion(0.28552863001823425, 0.875688910484314, 0.3684656023979187, 0.12599752843379974),
  62: Quaternion(0.5241822004318237, 0.7573577165603638, 0.389112651348114, 0.015284978784620762)}
 
-@export_range(0.0, 1.0) var pose_position = 0.0
-@onready var start_rotations = rock_rotations
-@onready var end_rotations = scissors_rotations
+@onready var last_rotations = paper_rotations
+@onready var goal_rotations = paper_rotations
 
 func global_to_local_rotations(rotations: Dictionary) -> void:
 	rotations[46] = rotations[45].inverse()*rotations[46]
@@ -143,7 +127,20 @@ func _init() -> void:
 	global_to_local_rotations(paper_rotations)
 	global_to_local_rotations(scissors_rotations)
 
-func process1() -> void:
+func _process(delta: float) -> void:
+	if Input.is_action_pressed("ui_accept"):
+		var transition = transitions[current_transition]
+		var goal = transition['Goal']
+		if current_pose.to_lower().strip_edges() == goal.to_lower().strip_edges():
+			transition(State.SUCCESS)
+		else:
+			transition(State.FAILURE)
+	
+	if state != State.ANIMATE:
+		return
+		
+	current_time += delta
+	current_time = min(current_time, duration)
 	if xsens_stream == null:
 		var selector = ThalamusNodeSelector.new()
 		selector.type = "XSENS"
@@ -153,42 +150,6 @@ func process1() -> void:
 	var total = rock + paper + scissors
 	if total <= 0.0:
 		return
-	var rotations = {}
-	
-	for key in rock_rotations:
-		if key == 43:
-			continue
-		#var up = 0.0
-		#var down = 0.0
-		#if key <= 54:
-		#	up =  
-			
-		var rock_axis: Vector3 = rock_rotations[key].get_axis()
-		var paper_axis: Vector3 = paper_rotations[key].get_axis()
-		var scissors_axis: Vector3 = scissors_rotations[key].get_axis()
-		var rock_angle: float = rock_rotations[key].get_angle()
-		var paper_angle: float = paper_rotations[key].get_angle()
-		var scissors_angle: float = scissors_rotations[key].get_angle()
-		
-		var average_axis = (rock*rock_axis + paper*paper_axis + scissors*scissors_axis)/total
-		var normal_axis = average_axis.normalized()
-		var average_angle = (rock*rock_angle + paper*paper_angle + scissors*scissors_angle)/total
-		
-		var rotation = Quaternion(normal_axis, average_angle)
-		var bone = expected_bones[key]
-		expected_skeleton.set_bone_pose_rotation(bone, rotation)
-	
-func process2() -> void:
-	if xsens_stream == null:
-		var selector = ThalamusNodeSelector.new()
-		selector.type = "XSENS"
-		xsens_stream = thalamus_stub.xsens(selector)
-		xsens_stream.connect("received", on_xsens)
-		
-	var total = rock + paper + scissors
-	if total <= 0.0:
-		return
-	var rotations = {}
 	
 	for key in rock_rotations:
 		if key == 43:
@@ -202,245 +163,85 @@ func process2() -> void:
 			up = paper
 			down = rock + scissors
 			
-		var rock_rotation: Quaternion = rock_rotations[key]
-		var paper_rotation: Quaternion = paper_rotations[key]
-		var rotation = rock_rotation.slerp(paper_rotation, up/total)
-			
-		var start_rotation: Quaternion = start_rotations[key]
-		var end_rotation: Quaternion = end_rotations[key]
-		var demo_rotation = start_rotation.slerp(end_rotation, pose_position)
-		
-		var bone = expected_bones[key]
-		expected_skeleton.set_bone_pose_rotation(bone, rotation)
+		var last_rotation: Quaternion = last_rotations[key]
+		var goal_rotation: Quaternion = goal_rotations[key]
+		var demo_rotation = last_rotation.slerp(goal_rotation, current_time/duration)
 		
 		var demo_bone = demo_bones[key]
 		demo_skeleton.set_bone_pose_rotation(demo_bone, demo_rotation)
 	
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta: float) -> void:
-	pose_position  = fmod(pose_position + delta/10, 1.0)
-	if false:
-		process1()
-	else:
-		process2()
-	
 func on_xsens(message: ThalamusXsensResponse):
-	var rotations = {}
-	for segment in message.segments:
-		if segment.id < 44:
-			continue
-		#The coordinate systems used in Unity and Godot are different so we use
-		#-q2 and -q3.  This transformation was derived from trial and error.
-		
-		#Subtract 1 from id when using a hand engine node.  This is a bug in the
-		#HAND_ENGINE node  I haven't fixed.
-		rotations[segment.id-1] = Quaternion(segment.q2, segment.q3, segment.q1, segment.q0)
-	
-	#The Xsens format published by Thalamus uses global poses but Godot requires
-	#local poses relative to the parent joint.  The following code starts from
-	#the finger tips and subtracts the orientation of the parent joint working
-	#back to the wrist.
-	rotations[46] = rotations[45].inverse()*rotations[46]
-	rotations[45] = rotations[44].inverse()*rotations[45]
-	rotations[44] = rotations[43].inverse()*rotations[44]
-	
-	rotations[50] = rotations[49].inverse()*rotations[50]
-	rotations[49] = rotations[48].inverse()*rotations[49]
-	rotations[48] = rotations[47].inverse()*rotations[48]
-	rotations[47] = rotations[43].inverse()*rotations[47]
-	
-	rotations[54] = rotations[53].inverse()*rotations[54]
-	rotations[53] = rotations[52].inverse()*rotations[53]
-	rotations[52] = rotations[51].inverse()*rotations[52]
-	rotations[51] = rotations[43].inverse()*rotations[51]
-	
-	rotations[58] = rotations[57].inverse()*rotations[58]
-	rotations[57] = rotations[56].inverse()*rotations[57]
-	rotations[56] = rotations[55].inverse()*rotations[56]
-	rotations[55] = rotations[43].inverse()*rotations[55]
-	
-	rotations[62] = rotations[61].inverse()*rotations[62]
-	rotations[61] = rotations[60].inverse()*rotations[61]
-	rotations[60] = rotations[59].inverse()*rotations[60]
-	rotations[59] = rotations[43].inverse()*rotations[59]
-	
-	#Skip the wrist orientation.  Only the fingers should move
-	rotations.erase(43)
-	for id in rotations:
-		var rotation = rotations[id]
-		actual_skeleton.set_bone_pose_rotation(actual_bones[id], rotation)
-
-func on_feedback(message: ThalamusAnalogResponse) -> void:
-	if message.data.size() == 0:
-		current_time = message.data[message.data.size()-1]
+	current_pose = message.pose_name
 	
 func apply_config(config: Dictionary) -> void:
 	state = State.INVALID
-	
-	var new_feedback_node = config['feedback_node']
-	var new_feedback_channel = config['feedback_channel']
-	if feedback_node != new_feedback_node or feedback_channel != new_feedback_channel:
-		if feedback_stream != null:
-			feedback_stream.try_cancel()
-			
-		feedback_node = new_feedback_node
-		feedback_channel = new_feedback_channel
-		var feedback_message = ThalamusAnalogRequest.new()
 		
-		var selector = ThalamusNodeSelector.new()
-		selector.name = feedback_node
-		feedback_message.node = selector
-		
-		feedback_message.channel_names = [feedback_channel]
-		feedback_stream = thalamus_stub.analog(feedback_message)
-		feedback_stream.connect('received', on_feedback)
-		
-	
-	if xsens_stream == null:
-		var selector = ThalamusNodeSelector.new()
-		selector.type = "XSENS"
-		xsens_stream = thalamus_stub.xsens(selector)
-		xsens_stream.connect("received", on_xsens)
-		inject_stream = thalamus_stub.inject_analog()
-		var inject_message = ThalamusInjectAnalogRequest.new()
-		inject_message.node = 'gesture_signal'
-		inject_stream.write(inject_message)
-		var feedback_message = ThalamusAnalogRequest.new()
-		selector = ThalamusNodeSelector.new()
-		selector.name = "XSENS"
-		inject_message.node = 'gesture_signal'
-		inject_stream.write(inject_message)
-		
-	audio_filename = config['success_audio_file']
 	transitions = config['Transitions']
+	current_transition = 0
 	inter_transition_interval = get_value(config['inter_transition_interval'])
-	#print('success_audio_filename ', success_audio_filename)
 	
-	$AudrioStreamPlayer.stream = AudioStreamOggVorbis.load_from_file(audio_filename)
-	for i in range(transitions.size()):
-		var transition = transitions[i]
-		var video = transition['Video']
-		var goal = transition['Goal']
-		
-		if goal == null:
-			print('Goal image for transition %s is undefined' % i)
-			%InitErrorTimer.start()
-			set_process(false)
-			
-		if not FileAccess.file_exists(goal):
-			print('Goal image for transition %s doesn\'t exist' % i)
-		
-		goals.append(Image.load_from_file(goal))
-		
-		if video == null:
-			print('Video for transition %s is undefined' % i)
-			%InitErrorTimer.start()
-			set_process(false)
-			
-		if not FileAccess.file_exists(video):
-			print('Video for transition %s doesn\'t exist' % i)
-		
-		
+	audio_filename = config['audio_file']
+	$AudioStreamPlayer.stream = AudioStreamOggVorbis.load_from_file(audio_filename)
 
-	if always_randomize:
-		var available_images = config['available_images']
-		var num_random = int(config['num_random'])
-		var count = min(num_random, len(available_images))
-		var choices = []
-		for i in range(count):
-			var selected = LAST_IMAGE
-			while selected == LAST_IMAGE:
-				i = randi() % available_images.length()
-				selected = available_images[i]
-			choices.append(selected)
-			LAST_IMAGE = selected
-		config['selected_images'] = choices
-
-	maybe_images = []
-	for p in config['selected_images']:
-		var image = Image.load_from_file(p[0])
-		var texture = ImageTexture.create_from_image(image)
-		maybe_images.append(texture)
-
-	maybe_poses = []
-	for p in config['selected_images']:
-		maybe_poses.append(p[1])
-
-	valid_indexes = []
-	for i in range(maybe_images.size()):
-		if maybe_images[i] != null:
-			valid_indexes.append(i)
-
-	images = []
-	for i in range(maybe_images.size()):
-		if maybe_images[i] != null:
-			images.append(i)
-  
-	iteration = 0
-	index = 0
-	transition(State.BLANK)
+	transition(State.INTER)
 	
 func transition(new_state: State) -> void:
-	if new_state == State.BLANK:
-		$StartPlayer.play()
+	if new_state == State.INTER:
 		$Label.visible = false
-		$TextureRect.visible = false
-		$Timer.wait_time = blank_time
+		$Demo.visible = false
+		$Timer.wait_time = inter_transition_interval
 		$Timer.start()
-	elif new_state == State.QUEUE:
-		var valid_index = valid_indexes[index]
-		var image = maybe_images[valid_index]
-		$TextureRect.texture = image
-		$Label.visible = false
-		$TextureRect.visible = true
-		
-		var span = ThalamusSpan.new()
-		span.begin = 0
-		span.end = 1
-		
-		var sig = ThalamusAnalogResponse.new()
-		sig.spans = [span]
-		sig.sample_intervals = [0]
-		
-		var injection = ThalamusInjectAnalogRequest.new()
-		
-		sig.data = [5]
-		injection.signal = sig
-		inject_stream.write(injection)
-		
-		$InjectTimer.start()
-		
-	elif new_state == State.SUCCESS:
-		$SuccessPlayer.play()
-		$TextureRect.visible = false
+	elif new_state == State.TITLE:
+		var transition = transitions[current_transition]
+		$AudioStreamPlayer.play()
 		$Label.visible = true
+		$Demo.visible = false
+		$Label.text = transition['Goal']
+		$Label.add_theme_color_override("font_color", Color(1, 1, 1))
+		$Timer.wait_time = 1
+		$Timer.start()
+	elif new_state == State.ANIMATE:
+		last_rotations = goal_rotations
+		$Label.visible = false
+		$Demo.visible = true
+		var transition = transitions[current_transition]
+		var goal = transition['Goal']
+		if goal.to_lower().strip_edges() == 'rock':
+			goal_rotations = rock_rotations
+		elif goal.to_lower().strip_edges() == 'paper':
+			goal_rotations = paper_rotations
+		else:
+			goal_rotations = scissors_rotations
+		duration = transition['Duration']
+		current_time = 0.0
+	elif new_state == State.SUCCESS:
+		$Label.visible = true
+		$Demo.visible = false
+		$Label.text = 'Success'
 		$Label.add_theme_color_override("font_color", Color(0, 1, 0))
-		$Label.text = "Success"
 		$Timer.wait_time = 1
 		$Timer.start()
 	elif new_state == State.FAILURE:
-		$FailurePlayer.play()
-		$TextureRect.visible = false
 		$Label.visible = true
+		$Demo.visible = false
+		$Label.text = 'Failure'
 		$Label.add_theme_color_override("font_color", Color(1, 0, 0))
-		$Label.text = "Failure"
 		$Timer.wait_time = 1
 		$Timer.start()
 	state = new_state
 
 func _on_timeout() -> void:
 	print('timeout')
-	if state == State.BLANK:
-		transition(State.QUEUE)
+	if state == State.INTER:
+		transition(State.TITLE)
+	elif state == State.TITLE:
+		transition(State.ANIMATE)
 	elif state == State.SUCCESS or state == State.FAILURE:
-		index += 1
-		if index >= valid_indexes.size():
-			iteration += 1
-			index = 0
-		if iteration >= num_iterations:
+		current_transition += 1
+		if current_transition == transitions.size():
 			on_finish()
-			return
-		transition(State.BLANK)
+		else:
+			transition(State.INTER)
 	
 func on_finish() -> void:
 	var result = TaskControllerTaskResult.new()
@@ -477,7 +278,7 @@ func get_bones(skeleton: Skeleton3D) -> Dictionary:
 	
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	pass
+	$Timer.connect("timeout", _on_timeout)
 
 func on_inject_timeout() -> void:
 	var span = ThalamusSpan.new()

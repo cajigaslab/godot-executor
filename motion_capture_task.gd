@@ -65,7 +65,7 @@ func apply_config(config: Dictionary) -> void:
 		for i in range(count):
 			var selected = LAST_IMAGE
 			while selected == LAST_IMAGE:
-				i = randi() % available_images.length()
+				i = randi() % available_images.size()
 				selected = available_images[i]
 			choices.append(selected)
 			LAST_IMAGE = selected

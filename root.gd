@@ -19,7 +19,8 @@ func resize() -> void:
 func _ready() -> void:
 	get_tree().get_root().size_changed.connect(resize) 
 	resize()
-	#%OperatorView.world_2d = get_window().world_2d
+	%OperatorView.world_2d = get_window().world_2d
+	%OperatorView.world_3d = get_window().world_3d
 	get_window().canvas_cull_mask = 1
 	
 	$InitErrorTimer.connect("timeout", _on_init_error_timeout)
@@ -27,8 +28,6 @@ func _ready() -> void:
 		print(child.name)
 		if child is Task:
 			child.thalamus_stub = thalamus_stub
-			if child.name == 'imagined_task':
-				continue
 			task_nodes.append(child)
 	
 	for node in task_nodes:
